@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>クロストレーナー トレーニングタイマー with YouTube</title>
+  <!-- Tailwind CSS (デザイン用) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts (見やすいデジタル風フォント) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=Noto+Sans+JP:wght@400;600;800&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      font-family: 'Noto Sans JP', sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .font-digital {
+      font-family: 'Chakra Petch', sans-serif;
+    }
+    /* アスペクト比16:9を維持する動画枠 */
+    .video-container {
+      position: relative;
+      padding-bottom: 56.25%;
+      height: 0;
+      overflow: hidden;
+    }
+    .video-container iframe {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col">
+
+  <!-- ヘッダー -->
+  <header class="bg-slate-900 border-b border-slate-800 px-4 py-2 flex items-center justify-between flex-shrink-0">
+    <div class="flex items-center gap-2">
+      <span class="inline-block w-3 h-3 rounded-full bg-emerald-500"></span>
+      <h1 class="text-sm font-bold tracking-wider text-slate-200">CROSS TRAINER TIMER</h1>
+    </div>
+    <!-- YouTube動画URL入力欄の表示切替ボタン -->
+    <button id="toggle-url-btn" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-2.5 py-1.5 rounded border border-slate-700 transition">
+      🎬 動画変更
+    </button>
+  </header>
+
+  <!-- YouTube URL入力パネル（初期は開いており、閉じることができます） -->
+  <div id="url-panel" class="bg-slate-900/90 border-b border-slate-800 px-4 py-3 flex flex-col sm:flex-row gap-2 transition-all">
+    <input 
+      id="youtube-url-input" 
+      type="text" 
+      placeholder="YouTubeのURLまたは共有リンクを貼り付け" 
+      class="flex-1 bg-slate-950 border border-slate-700 rounded px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-emerald-500"
+    />
+    <button 
+      id="load-video-btn" 
+      class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-4 py-1.5 rounded transition whitespace-nowrap">
+      読み込む
+    </button>
+  </div>
+
+  <!-- YouTube プレーヤーエリア -->
+  <div class="w-full max-w-2xl mx-auto bg-black flex-shrink-0 shadow-lg">
+    <div class="video-container">
+      <iframe 
+        id="youtube-iframe"
+        src="https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?enablejsapi=1" 
+        title="YouTube video player" 
+        frameborder="0" 
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+        allowfullscreen>
+      </iframe>
+    </div>
+  </div>
+
+  <!-- タイマー・トレーニング情報エリア -->
+  <main class="flex-1 w-full max-w-2xl mx-auto p-4 flex flex-col justify-between gap-3">
+
+    <!-- フェーズ情報カード -->
+    <div id="phase-card" class="bg-slate-900 border-2 border-emerald-500/50 rounded-xl p-4 transition-colors">
+      <div class="flex items-center justify-between mb-2">
+        <span id="phase-step" class="text-xs font-bold uppercase tracking-widest text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800">
+          PHASE 1 / 4
+        </span>
+        <span id="phase-name" class="text-sm font-bold text-slate-200">ウォームアップ</span>
+      </div>
+
+      <!-- 回転方向 & 負荷・ケイデンス目安 -->
+      <div class="grid grid-cols-2 gap-2 mt-2">
+        <div class="bg-slate-950/80 rounded-lg p-2.5 border border-slate-800">
+          <div class="text-[11px] text-slate-400 font-semibold mb-0.5">回転方向</div>
+          <div id="phase-direction" class="text-base font-extrabold text-emerald-400">順回転（前漕ぎ）</div>
+        </div>
+        <div class="bg-slate-950/80 rounded-lg p-2.5 border border-slate-800">
+          <div class="text-[11px] text-slate-400 font-semibold mb-0.5">負荷・RPM目安</div>
+          <div id="phase-targets" class="text-xs font-bold text-slate-200 leading-tight">Level 3〜4 / 45〜50 RPM</div>
+        </div>
+      </div>
+
+      <!-- 狙い・体の使い方 -->
+      <div class="mt-2 text-xs text-slate-400 bg-slate-950/40 p-2 rounded border border-slate-800/60">
+        <span class="text-slate-500 font-semibold">POINT:</span> 
+        <span id="phase-focus">心拍数をスムーズに110 bpmまで引き上げ、関節の可動域を広げる。</span>
+      </div>
+    </div>
+
+    <!-- カウントダウン数字 & 次フェーズ予告表示エリア -->
+    <div class="relative bg-slate-900/60 border border-slate-800 rounded-xl p-3 flex flex-col items-center justify-center">
+      
+      <!-- 5秒前カウントダウン用オーバーレイ（通常は非表示） -->
+      <div id="countdown-alert" class="hidden absolute inset-0 bg-rose-600/95 rounded-xl z-20 flex flex-col items-center justify-center p-3 animate-pulse">
+        <div class="text-xs font-bold text-rose-200 tracking-wider mb-1">まもなくフェーズ切替！</div>
+        <div id="countdown-alert-number" class="text-6xl font-extrabold font-digital text-white">5</div>
+        <div id="countdown-alert-next" class="text-xs text-center font-bold text-white mt-1">
+          次：メイン燃焼（順回転）
+        </div>
+      </div>
+
+      <!-- 通常のタイマー数字 -->
+      <div class="text-[11px] font-bold text-slate-400 tracking-wider mb-0.5">フェーズ残り時間</div>
+      <div id="timer-display" class="font-digital text-5xl sm:text-6xl font-bold tracking-tight text-emerald-400">
+        03:00
+      </div>
+
+      <!-- 全体進捗バー -->
+      <div class="w-full mt-3">
+        <div class="flex justify-between text-[11px] text-slate-400 mb-1">
+          <span>全体経過時間: <span id="total-time" class="font-digital font-bold text-slate-200">00:00</span> / 20:00</span>
+          <span id="total-percent" class="font-digital font-bold text-slate-300">0%</span>
+        </div>
+        <div class="w-full h-2 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
+          <div id="total-progress-bar" class="h-full bg-emerald-500 transition-all duration-300" style="width: 0%;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 操作ボタン -->
+    <div class="grid grid-cols-2 gap-3 pb-2">
+      <button 
+        id="start-pause-btn" 
+        class="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-white font-bold text-base rounded-xl shadow-lg transition flex items-center justify-center gap-2">
+        <svg id="play-icon" class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+        <span id="start-pause-text">トレーニング開始</span>
+      </button>
+
+      <button 
+        id="reset-btn" 
+        class="w-full py-3.5 px-4 bg-slate-800 hover:bg-slate-700 active:scale-[0.98] text-slate-300 font-bold text-base rounded-xl border border-slate-700 transition flex items-center justify-center gap-2">
+        <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+        <span>一時停止 / 終了</span>
+      </button>
+    </div>
+  </main>
+
+  <!-- 終了確認ダイアログ -->
+  <div id="stop-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 max-w-sm w-full text-center shadow-2xl">
+      <h3 class="text-base font-bold text-slate-200 mb-2">トレーニングを終了しますか？</h3>
+      <p class="text-xs text-slate-400 mb-6">タイマーを最初（00:00）にリセットします。</p>
+      <div class="grid grid-cols-2 gap-3">
+        <button id="modal-resume-btn" class="py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition">
+          続ける
+        </button>
+        <button id="modal-reset-btn" class="py-2.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-lg transition">
+          終了してリセット
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* ==========================================================
+     * 1. トレーニングメニューのデータ定義（スプレッドシート準拠）
+     * ========================================================== */
+    const phases = [
+      {
+        step: "PHASE 1 / 4",
+        name: "ウォームアップ",
+        duration: 3 * 60, // 3分 (180秒)
+        direction: "順回転（前漕ぎ）",
+        isReverse: false,
+        targets: "Level 3〜4 / 45〜50 RPM",
+        focus: "心拍数をスムーズに110 bpmまで引き上げ、関節の可動域を広げる。"
+      },
+      {
+        step: "PHASE 2 / 4",
+        name: "メイン燃焼（全身連動）",
+        duration: 10 * 60, // 10分 (600秒)
+        direction: "順回転（前漕ぎ）",
+        isReverse: false,
+        targets: "Level 5〜7 / 50〜55 RPM",
+        focus: "背中とお尻を使う主燃焼区間。目標心拍数（115〜125 bpm）をキープ。"
+      },
+      {
+        step: "PHASE 3 / 4",
+        name: "下半身引き締め（ヒップ特化）",
+        duration: 4 * 60, // 4分 (240秒)
+        direction: "逆回転（後ろ漕ぎ）",
+        isReverse: true, // 後ろ漕ぎ強調フラグ
+        targets: "Level 5〜6 / 45〜50 RPM",
+        focus: "大臀筋・太もも裏（ハムストリングス）を集中刺激。骨盤の後傾とヒップアップを狙う。"
+      },
+      {
+        step: "PHASE 4 / 4",
+        name: "クールダウン",
+        duration: 3 * 60, // 3分 (180秒)
+        direction: "順回転（脱力）",
+        isReverse: false,
+        targets: "Level 1〜2 / 40〜45 RPM",
+        focus: "深呼吸を行い、心拍数を100 bpm未満へ落ち着かせる（自律神経の安定）。"
+      }
+    ];
+
+    const TOTAL_DURATION = phases.reduce((acc, cur) => acc + cur.duration, 0); // 1200秒 (20分)
+
+    /* ==========================================================
+     * 2. アプリの状態管理変数
+     * ========================================================== */
+    let currentPhaseIndex = 0;
+    let phaseTimeRemaining = phases[0].duration;
+    let totalTimeElapsed = 0;
+    let isRunning = false;
+    let timerInterval = null;
+    let wakeLock = null;
+
+    /* ==========================================================
+     * 3. DOM要素の取得
+     * ========================================================== */
+    const phaseCard = document.getElementById('phase-card');
+    const phaseStep = document.getElementById('phase-step');
+    const phaseName = document.getElementById('phase-name');
+    const phaseDirection = document.getElementById('phase-direction');
+    const phaseTargets = document.getElementById('phase-targets');
+    const phaseFocus = document.getElementById('phase-focus');
+
+    const timerDisplay = document.getElementById('timer-display');
+    const totalTimeEl = document.getElementById('total-time');
+    const totalPercentEl = document.getElementById('total-percent');
+    const totalProgressBar = document.getElementById('total-progress-bar');
+
+    const countdownAlert = document.getElementById('countdown-alert');
+    const countdownAlertNumber = document.getElementById('countdown-alert-number');
+    const countdownAlertNext = document.getElementById('countdown-alert-next');
+
+    const startPauseBtn = document.getElementById('start-pause-btn');
+    const startPauseText = document.getElementById('start-pause-text');
+    const resetBtn = document.getElementById('reset-btn');
+
+    const stopModal = document.getElementById('stop-modal');
+    const modalResumeBtn = document.getElementById('modal-resume-btn');
+    const modalResetBtn = document.getElementById('modal-reset-btn');
+
+    const toggleUrlBtn = document.getElementById('toggle-url-btn');
+    const urlPanel = document.getElementById('url-panel');
+    const youtubeUrlInput = document.getElementById('youtube-url-input');
+    const loadVideoBtn = document.getElementById('load-video-btn');
+    const youtubeIframe = document.getElementById('youtube-iframe');
+
+    /* ==========================================================
+     * 4. Web Audio API による電子ビープ音（タイマー音）
+     * ========================================================== */
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    function playBeep(freq = 880, duration = 0.12) {
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+      gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + duration);
+    }
+
+    /* ==========================================================
+     * 5. 表示更新関数
+     * ========================================================== */
+    function formatTime(seconds) {
+      const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+      const s = (seconds % 60).toString().padStart(2, '0');
+      return `${m}:${s}`;
+    }
+
+    function updateUI() {
+      const cur = phases[currentPhaseIndex];
+      phaseStep.textContent = cur.step;
+      phaseName.textContent = cur.name;
+      phaseDirection.textContent = cur.direction;
+      phaseTargets.textContent = cur.targets;
+      phaseFocus.textContent = cur.focus;
+
+      // 逆回転フェーズ（Phase 3）は注意を促すためにアンバー色に変更
+      if (cur.isReverse) {
+        phaseCard.className = "bg-slate-900 border-2 border-amber-500 rounded-xl p-4 transition-colors shadow-lg shadow-amber-500/10";
+        phaseDirection.className = "text-base font-extrabold text-amber-400";
+        phaseStep.className = "text-xs font-bold uppercase tracking-widest text-amber-400 bg-amber-950/60 px-2 py-0.5 rounded border border-amber-800";
+        timerDisplay.className = "font-digital text-5xl sm:text-6xl font-bold tracking-tight text-amber-400";
+      } else {
+        phaseCard.className = "bg-slate-900 border-2 border-emerald-500/50 rounded-xl p-4 transition-colors";
+        phaseDirection.className = "text-base font-extrabold text-emerald-400";
+        phaseStep.className = "text-xs font-bold uppercase tracking-widest text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800";
+        timerDisplay.className = "font-digital text-5xl sm:text-6xl font-bold tracking-tight text-emerald-400";
+      }
+
+      // 残り時間・全体時間表示
+      timerDisplay.textContent = formatTime(phaseTimeRemaining);
+      totalTimeEl.textContent = formatTime(totalTimeElapsed);
+      const percent = Math.min(100, Math.floor((totalTimeElapsed / TOTAL_DURATION) * 100));
+      totalPercentEl.textContent = `${percent}%`;
+      totalProgressBar.style.width = `${percent}%`;
+    }
+
+    /* ==========================================================
+     * 6. タイマー処理コアロジック
+     * ========================================================== */
+    function tick() {
+      totalTimeElapsed++;
+      phaseTimeRemaining--;
+
+      // 5秒前〜1秒前のカウントダウン表示＆ビープ音
+      if (phaseTimeRemaining <= 5 && phaseTimeRemaining > 0 && currentPhaseIndex < phases.length - 1) {
+        const nextPhase = phases[currentPhaseIndex + 1];
+        countdownAlertNumber.textContent = phaseTimeRemaining;
+        countdownAlertNext.textContent = `次：${nextPhase.name}（${nextPhase.direction}）`;
+        countdownAlert.classList.remove('hidden');
+        playBeep(800, 0.1); // ピッ音
+      } else {
+        countdownAlert.classList.add('hidden');
+      }
+
+      // フェーズ終了時
+      if (phaseTimeRemaining <= 0) {
+        if (currentPhaseIndex < phases.length - 1) {
+          // 次のフェーズへ移行
+          currentPhaseIndex++;
+          phaseTimeRemaining = phases[currentPhaseIndex].duration;
+          playBeep(1400, 0.35); // 切り替え完了の「ピーン」音
+          updateUI();
+        } else {
+          // 全20分完了！
+          finishWorkout();
+          return;
+        }
+      }
+
+      updateUI();
+    }
+
+    function startTimer() {
+      if (isRunning) return;
+      isRunning = true;
+      startPauseText.textContent = "一時停止";
+      startPauseBtn.classList.replace('bg-emerald-600', 'bg-amber-600');
+      startPauseBtn.classList.replace('hover:bg-emerald-500', 'hover:bg-amber-500');
+
+      // スリープ防止（Wake Lock）
+      requestWakeLock();
+
+      timerInterval = setInterval(tick, 1000);
+    }
+
+    function pauseTimer() {
+      if (!isRunning) return;
+      isRunning = false;
+      startPauseText.textContent = "再開";
+      startPauseBtn.classList.replace('bg-amber-600', 'bg-emerald-600');
+      startPauseBtn.classList.replace('hover:bg-amber-500', 'hover:bg-emerald-500');
+
+      clearInterval(timerInterval);
+      releaseWakeLock();
+    }
+
+    function resetTimer() {
+      pauseTimer();
+      currentPhaseIndex = 0;
+      phaseTimeRemaining = phases[0].duration;
+      totalTimeElapsed = 0;
+      countdownAlert.classList.add('hidden');
+      startPauseText.textContent = "トレーニング開始";
+      updateUI();
+    }
+
+    function finishWorkout() {
+      pauseTimer();
+      playBeep(1000, 0.5);
+      alert("お疲れ様でした！本日のクロストレーナーメニュー（20分）が完了しました！");
+      resetTimer();
+    }
+
+    /* 画面スリープ防止 (Screen Wake Lock API) */
+    async function requestWakeLock() {
+      try {
+        if ('wakeLock' in navigator) {
+          wakeLock = await navigator.wakeLock.request('screen');
+        }
+      } catch (err) {
+        console.warn('Wake Lock error:', err);
+      }
+    }
+
+    function releaseWakeLock() {
+      if (wakeLock) {
+        wakeLock.release().then(() => { wakeLock = null; });
+      }
+    }
+
+    /* ==========================================================
+     * 7. YouTube URL 解析 & 埋め込み読み込み処理
+     * ========================================================== */
+    function extractYouTubeId(url) {
+      // さまざまなYouTubeのURL形式から11桁の動画IDを取り出す正規表現
+      const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+      const match = url.trim().match(regExp);
+      return (match && match[2].length === 11) ? match[2] : null;
+    }
+
+    loadVideoBtn.addEventListener('click', () => {
+      const url = youtubeUrlInput.value;
+      const videoId = extractYouTubeId(url);
+      if (videoId) {
+        // 埋め込みURLを更新
+        youtubeIframe.src = `https://www.youtube-nocookie.com/embed/${videoId}?enablejsapi=1&autoplay=1`;
+        // URL入力パネルを自動で閉じて動画を広く見せる
+        urlPanel.classList.add('hidden');
+      } else {
+        alert("有効なYouTubeのURLを入力してください。\n例: https://www.youtube.com/watch?v=xxxx");
+      }
+    });
+
+    // 動画変更ボタンで入力パネルを開閉
+    toggleUrlBtn.addEventListener('click', () => {
+      urlPanel.classList.toggle('hidden');
+    });
+
+    /* ==========================================================
+     * 8. ボタンイベントリスナー
+     * ========================================================== */
+    startPauseBtn.addEventListener('click', () => {
+      if (isRunning) {
+        pauseTimer();
+      } else {
+        startTimer();
+      }
+    });
+
+    // 終了確認モーダルの制御
+    resetBtn.addEventListener('click', () => {
+      pauseTimer();
+      stopModal.classList.remove('hidden');
+    });
+
+    modalResumeBtn.addEventListener('click', () => {
+      stopModal.classList.add('hidden');
+      startTimer();
+    });
+
+    modalResetBtn.addEventListener('click', () => {
+      stopModal.classList.add('hidden');
+      resetTimer();
+    });
+
+    // 初期描画
+    updateUI();
+  </script>
+</body>
+</html>
